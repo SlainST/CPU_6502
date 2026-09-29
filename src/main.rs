@@ -1,13 +1,9 @@
-use std::{mem::uninitialized, ptr::null};
-
-
-
 fn main() {
     
     let _memory = Memory {
         data: [0x00u8; 65536],
     };
-    let _cpu = CPU_6502 {
+    let mut _cpu = CPU_6502 {
         address_bus: 0,
         data_bus: 0,
         accumulator: 0,
@@ -23,7 +19,7 @@ fn main() {
 
 
 
-
+    _cpu.decode_opcode(0xa9);
 
 }
 //The 6502 does not have any special support of hardware devices so they must be mapped to regions of memory in order to exchange data with the hardware latches.
@@ -289,7 +285,7 @@ impl CPU_6502{
         let mut cost :u8= 0;
         let mut bytes:u8= 0;
         match opcode{
-            a9 => {
+            0xa9 => {
                 cost = 2;
                 bytes = 2;
                 let operand_address = self.get_operand_address(&AddressingMode::Immediate);
