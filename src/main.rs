@@ -125,105 +125,7 @@ impl CPU_6502{
 
 
     //The 6502 has a 16-bit program counter, which is used to keep track of the current instruction being executed.
-    
 
-
-
-    ///instructions
-    fn ACD(&mut self){ // 0
-    }
-    fn AND(&mut self){ // 1
-    }
-    fn ASL(&mut self){ // 2
-    }
-    fn BCC(&mut self){ // 3
-    }
-    fn BCS(&mut self){ // 4
-    }
-    fn BEQ(&mut self){ // 6
-    }
-    fn BIT(&mut self){ // 6
-    }
-    fn BPL(&mut self){ // 7
-    }
-    fn BVC(&mut self){ // 8
-    }
-    fn BVS(&mut self){ // 9
-    }
-    fn CLV(&mut self){ // 10
-    }
-    fn CMP(&mut self){ // 11
-    }
-    fn CPX(&mut self){ // 12
-    }
-    fn CPY(&mut self){ // 13
-    }
-    fn DEC(&mut self){ // 14
-    }
-    fn DEX(&mut self){ // 15
-    }
-    fn DEY(&mut self){ // 16
-    }
-    fn EOR(&mut self){ // 17
-    }
-    fn INC(&mut self){ // 18
-    }
-    fn INX(&mut self){ // 19
-    }
-    fn INY(&mut self){ // 20
-    }
-    fn JMP(&mut self){ // 21
-    }
-    fn JSR(&mut self){ // 22
-    }
-    fn LDA(&mut self, addr: u16){ // 23
-    }
-    fn LDX(&mut self){ // 24
-    }
-    fn LDY(&mut self){ // 25
-    }
-    fn LSR(&mut self){ // 26
-    }
-    fn NOP(&mut self){ // 27
-    }
-    fn ORA(&mut self){ // 28
-    }
-    fn PHA(&mut self){ // 29
-    }
-    fn PHP(&mut self){ // 30
-    }
-    fn PLA(&mut self){ // 31
-    }
-    fn PLP(&mut self){ // 32
-    }
-    fn ROL(&mut self){ // 33
-    }
-    fn ROR(&mut self){ // 34
-    }
-    fn RTI(&mut self){ // 35
-    }
-    fn RTS(&mut self){ // 36
-    }
-    fn SBC(&mut self){ // 37
-    }
-    fn STA(&mut self){ // 38
-    }
-    fn STX(&mut self){ // 39
-    }
-    fn STY(&mut self){ // 40
-    }
-    fn TAX(&mut self){ // 41
-    }
-    fn TAY(&mut self){ // 42
-    }
-    fn TSX(&mut self){ // 43
-    }
-    fn TXA(&mut self){ // 44
-    }
-    fn TXS(&mut self){ // 45
-    }
-    fn TYA(&mut self){ // 46
-    }
 
 
     fn get_operand_address(&mut self, mode: &AddressingMode)-> u16{
@@ -296,12 +198,152 @@ impl CPU_6502{
     }
     pub fn instruction_apply(&mut self, operand_address: u16, instruction: u8) {
         match instruction {
-            23 => {
+            0 => { //ADC
+
+            },
+            1 => { //AND
+
+            },
+            2 => { //ASL
+
+            },
+            3 => { //BCC
+
+            },
+            4 => { //BCS
+
+            },
+            5 => { //BEQ
+
+            },
+            6 => { //BIT
+
+            },
+            7 => { //BPL
+
+            },
+            8 => { //BVC
+
+            },
+            9 => { //BVS
+
+            },
+            10 => { //CLV
+
+            },
+            11 => { //CMP
+
+            },
+            12 => { //CPX
+
+            },
+            13 => { //CPY
+
+            },
+            14 => { //DEC
+
+            },
+            15 => { //DEX
+
+            },
+            16 => { //DEY
+
+            },
+            17 => { //EOR
+
+            },
+            18 => { //INC
+
+            },
+            19 => { //INX
+
+            },
+            20 => { //INY
+
+            },
+            21 => { //JMP
+
+            },
+            22 => { //JSR
+
+            },
+            23 => { //LDA
                 self.read_memory(operand_address);
-                self.accumulator= self.data_bus;
+                self.accumulator = self.data_bus;
                 self.update_Z(self.accumulator == 0);
                 self.update_N((self.accumulator & (1 << 7)) >> 7 == 1);
             },
+            24 => { //LDX
+
+            },
+            25 => { //LDY
+
+            },
+            26 => { //LSR
+
+            },
+            27 => { //NOP
+
+            },
+            28 => { //ORA
+
+            },
+            29 => { //PHA
+
+            },
+            30 => { //PHP
+
+            },
+            31 => { //PLA
+
+            },
+            32 => { //PLP
+
+            },
+            33 => { //ROL
+
+            },
+            34 => { //ROR
+
+            },
+            35 => { //RTI
+
+            },
+            36 => { //RTS
+
+            },
+            37 => { //SBC
+
+            },
+            38 => { //STA
+
+            },
+            39 => { //STX
+
+            },
+            40 => { //STY
+
+            },
+            41 => { //TAX
+
+            },
+            42 => { //TAY
+
+            },
+            43 => { //TSX
+
+            },
+            44 => { //TXA
+
+            },
+            45 => { //TXS
+
+            },
+            46 => { //TYA
+
+            },
+
+    
             _ => panic!("Unknown instruction: {:02X}", instruction),
         }
     }
