@@ -228,8 +228,7 @@ impl CPU_6502{
     }
 
 
-    fn get_operand_address(&mut self, mode: &AddressingMode) -> u16{
-        let mut addr:u16=0;
+    fn get_operand_address(&mut self, mode: &AddressingMode)-> u16{
         match mode {
             &AddressingMode::Implicit =>{
                 unimplemented!()
@@ -238,7 +237,7 @@ impl CPU_6502{
                 unimplemented!()
             }
             &AddressingMode::Immediate => {
-                addr = self.program_counter; // it's supposed to already be in the program counter.
+                self.address_bus = self.program_counter; // it's supposed to already be in the program counter.
                 self.program_counter += 1;
             }
             &AddressingMode::ZeroPage =>{
@@ -257,7 +256,7 @@ impl CPU_6502{
             &AddressingMode::Absolute =>{
                 let lo = self.read_next_byte() as u16;
                 let hi = self.read_next_byte() as u16;
-                addr=(hi << 8) | lo;
+                self.address_bus=(hi << 8) | lo;
             }
             &AddressingMode::AbsoluteX =>{
                 unimplemented!()
@@ -277,19 +276,20 @@ impl CPU_6502{
             _ => panic!("Unknown mode: error of finding this mode"),
 
         }
-        addr
+        self.address_bus
     }
 
 
     pub fn decode_opcode(&mut self, opcode:u8){
         let mut cost :u8= 0;
         let mut bytes:u8= 0;
+        
         match opcode{
             0xa9 => {
                 cost = 2;
                 bytes = 2;
-                let operand_address = self.get_operand_address(&AddressingMode::Immediate);
-                self.instruction_apply(operand_address, 23);
+                let mut addr:u16= self.get_operand_address(&AddressingMode::Immediate);
+                self.instruction_apply(addr, 23);
             }
             _ => {}
         }
