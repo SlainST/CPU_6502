@@ -66,7 +66,8 @@ impl CPU_6502{
 
     //The 6502 has a 8-bit data bus, which allows it to read and write 8 bits of data at a time.
     fn data_bus_cycle(&mut self) {
-        self.data_bus = self.read_memory(self.address_bus); 
+        unimplemented!()
+        //self.data_bus = self.read_memory(self.address_bus); 
     }
 
 
@@ -299,7 +300,8 @@ impl CPU_6502{
     pub fn instruction_apply(&mut self, operand_address: u16, instruction: u8) {
         match instruction {
             23 => {
-                self.accumulator = self.read_memory(operand_address);
+                self.read_memory(operand_address);
+                self.accumulator= self.data_bus;
                 self.update_Z(self.accumulator == 0);
                 self.update_N((self.accumulator & (1 << 7)) >> 7 == 1);
             },
@@ -328,8 +330,8 @@ impl CPU_6502{
         unimplemented!()
     }
     
-    fn read_memory(&self, addr: u16) -> u8 {
-        self.memory.read(addr)
+    fn read_memory(&mut self, addr: u16) {
+        self.data_bus= self.memory.read(addr);
     }
     fn write_memory(&mut self, addr:u16, data:u8){
         self.memory.write(addr, data);
