@@ -177,9 +177,6 @@ impl CPU_6502{
     fn JSR(&mut self){ // 22
     }
     fn LDA(&mut self, addr: u16){ // 23
-        self.accumulator = self.read_memory(addr);
-        self.update_Z(self.accumulator == 0);
-        self.update_N((self.accumulator & (1 << 7)) >> 7 == 1);
     }
     fn LDX(&mut self){ // 24
     }
