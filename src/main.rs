@@ -1,3 +1,4 @@
+use std::num::Wrapping;
 fn main() {
     
     let _memory = Memory {
@@ -111,6 +112,7 @@ impl CPU_6502{
     fn SEI(&mut self) { self.status_register |= CPU_6502::I; } //Set Interrupt Disable instruction
     fn CLI(&mut self) { self.status_register &= !CPU_6502::I; }//Clear Interrupt Disable instruction
     fn update_Z(&mut self, value: bool){ if value == true { self.status_register |= CPU_6502::Z; } else { self.status_register &= !CPU_6502::Z; } }
+    fn update_C(&mut self, value: bool){ if value == true { self.status_register |= CPU_6502::C; } else { self.status_register &= !CPU_6502::C; } }
     fn SEC(&mut self) { self.status_register |= CPU_6502::C; } //set carry flag instruction
     fn CLC(&mut self) { self.status_register &= !CPU_6502::C; } //clear carry flag instruction
     fn read_N(&self) -> bool { (self.status_register & CPU_6502::N) != 0 }
@@ -141,8 +143,10 @@ impl CPU_6502{
                 self.program_counter += 1;
             }
             &AddressingMode::ZeroPage =>{
-                unimplemented!() 
+                let hi:u16= 0x0000;
+                let lo:u16= self.read_next_byte() as u16;
                  //need to return 16 bit even if we have only 8 bit
+                self.address_bus=hi|lo
             }
             &AddressingMode::ZeroPageX =>{
                 unimplemented!()
@@ -199,10 +203,19 @@ impl CPU_6502{
     pub fn instruction_apply(&mut self, operand_address: u16, instruction: u8) {
         match instruction {
             0 => { //ADC
+                let mut isOverflow: bool = false;
+                let mut bit7: bool = false;
                 self.read_memory(operand_address);
-                self.accumulator = self.data_bus;
+                bit7= (self.accumulator & (1 << 7)) >> 7 == 1;
+                self.accumulator = self.accumulator.wrapping_add(self.data_bus);
+                isOverflow = (bit7 ==true) & ((self.accumulator & (1 << 7)) >> 7 == 0);
+                bit7= (self.accumulator & (1 << 7)) >> 7 == 1;
+                self.accumulator = self.accumulator.wrapping_add(self.read_C() as u8);
+                isOverflow = isOverflow | ((bit7 ==true) & ((self.accumulator & (1 << 7)) >> 7 == 0));
                 self.update_Z(self.accumulator == 0);
+                self.update_C(isOverflow);
                 self.update_N((self.accumulator & (1 << 7)) >> 7 == 1);
+                //hatalı ve daha V kodlanmadı
             },
             1 => { //AND
 
