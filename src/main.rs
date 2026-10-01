@@ -199,7 +199,10 @@ impl CPU_6502{
     pub fn instruction_apply(&mut self, operand_address: u16, instruction: u8) {
         match instruction {
             0 => { //ADC
-
+                self.read_memory(operand_address);
+                self.accumulator = self.data_bus;
+                self.update_Z(self.accumulator == 0);
+                self.update_N((self.accumulator & (1 << 7)) >> 7 == 1);
             },
             1 => { //AND
 
