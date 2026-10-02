@@ -215,13 +215,23 @@ impl CPU_6502{
                 self.update_Z(self.accumulator == 0);
                 self.update_C(isOverflow);
                 self.update_N((self.accumulator & (1 << 7)) >> 7 == 1);
-                //hatalı ve daha V kodlanmadı
+                //hatalı ve daha V kodlanmadı, read_n kullanarak dene
             },
             1 => { //AND
-
+                self.accumulator = self.accumulator & self.read_memory(operand_address);
+                self.update_Z(self.accumulator == 0);
+                self.update_N((self.accumulator & (1 << 7)) >> 7 == 1);
             },
             2 => { //ASL
+                
+                let mut bit7: bool = false;
 
+                self.accumulator = self.read_memory(operand_address);
+                bit7 = (self.accumulator & (1 << 7)) >> 7 == 1;
+                self.accumulator = self.accumulator.wrapping_mul(2);
+                self.update_C(bit7);
+                self.update_Z(self.accumulator == 0);
+                self.update_N((self.accumulator & (1 << 7)) >> 7 == 1);
             },
             3 => { //BCC
 
@@ -385,7 +395,7 @@ impl CPU_6502{
         unimplemented!()
     }
     
-    fn read_memory(&mut self, addr: u16) {
+    fn read_memory(&mut self, addr: u16) -> u8 {
         self.data_bus= self.memory.read(addr);
     }
     fn write_memory(&mut self, addr:u16, data:u8){
