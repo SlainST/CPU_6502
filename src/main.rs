@@ -397,6 +397,7 @@ impl CPU_6502{
     
     fn read_memory(&mut self, addr: u16) -> u8 {
         self.data_bus= self.memory.read(addr);
+        return self.data_bus;
     }
     fn write_memory(&mut self, addr:u16, data:u8){
         self.memory.write(addr, data);
