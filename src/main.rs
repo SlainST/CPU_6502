@@ -312,6 +312,9 @@ impl CPU_6502{
 
             },
             28 => { //ORA
+                self.accumulator = self.accumulator | self.read_memory(operand_address);
+                self.update_Z(self.accumulator == 0);
+                self.update_N((self.accumulator & (1 << 7)) >> 7 == 1);
 
             },
             29 => { //PHA
@@ -327,6 +330,13 @@ impl CPU_6502{
 
             },
             33 => { //ROL
+                let mut bit7: bool = false;
+                self.accumulator = self.read_memory(operand_address);
+                self.accumulator = self.accumulator.wrapping_mul(2);
+                self.accumulator = self.accumulator | bit7 as u8;
+                self.update_C(bit7);
+                self.update_Z(self.accumulator == 0);
+                self.update_N((self.accumulator & (1 << 7)) >> 7 == 1);
 
             },
             34 => { //ROR
