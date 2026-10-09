@@ -192,28 +192,26 @@ impl CPU_6502{
             0xa9 => {
                 cost = 2;
                 bytes = 2;
-                let mut addr:u16= self.get_operand_address(&AddressingMode::Immediate);
+                let addr:u16= self.get_operand_address(&AddressingMode::Immediate);
                 self.instruction_apply(addr, 23);
             }
             _ => {}
         }
-
-        
     }
+
+
     pub fn instruction_apply(&mut self, operand_address: u16, instruction: u8) {
         match instruction {
             0 => { //ADC
-                let mut isOverflow: bool = false;
-                let mut bit7: bool = false;
                 self.read_memory(operand_address);
-                bit7= (self.accumulator & (1 << 7)) >> 7 == 1;
+                let mut bit7: bool= (self.accumulator & (1 << 7)) >> 7 == 1;
                 self.accumulator = self.accumulator.wrapping_add(self.data_bus);
-                isOverflow = (bit7 ==true) & ((self.accumulator & (1 << 7)) >> 7 == 0);
+                let mut is_overflow: bool = (bit7 ==true) & ((self.accumulator & (1 << 7)) >> 7 == 0);
                 bit7= (self.accumulator & (1 << 7)) >> 7 == 1;
                 self.accumulator = self.accumulator.wrapping_add(self.read_C() as u8);
-                isOverflow = isOverflow | ((bit7 ==true) & ((self.accumulator & (1 << 7)) >> 7 == 0));
+                is_overflow = is_overflow | ((bit7 ==true) & ((self.accumulator & (1 << 7)) >> 7 == 0));
                 self.update_Z(self.accumulator == 0);
-                self.update_C(isOverflow);
+                self.update_C(is_overflow);
                 self.update_N((self.accumulator & (1 << 7)) >> 7 == 1);
                 //hatalı ve daha V kodlanmadı, read_n kullanarak dene
             },
@@ -224,10 +222,9 @@ impl CPU_6502{
             },
             2 => { //ASL
                 
-                let mut bit7: bool = false;
-
+                
                 self.accumulator = self.read_memory(operand_address);
-                bit7 = (self.accumulator & (1 << 7)) >> 7 == 1;
+                let bit7: bool = (self.accumulator & (1 << 7)) >> 7 == 1;
                 self.accumulator = self.accumulator.wrapping_mul(2);
                 self.update_C(bit7);
                 self.update_Z(self.accumulator == 0);
@@ -330,7 +327,7 @@ impl CPU_6502{
 
             },
             33 => { //ROL
-                let mut bit7: bool = false;
+                let bit7: bool = false;
                 self.accumulator = self.read_memory(operand_address);
                 self.accumulator = self.accumulator.wrapping_mul(2);
                 self.accumulator = self.accumulator | bit7 as u8;
