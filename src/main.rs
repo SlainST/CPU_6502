@@ -79,11 +79,11 @@ impl CPU_6502{
 
 
     //The 6502 has a 8-bit index registers, which are used for addressing memory.
-    fn reg_x(&self) -> u8 { self.index_registers[0] }//hold counters or offsets for accessing memory. 
+    fn reg_x(&mut self) -> &mut u8 { &mut self.index_registers[0] }//hold counters or offsets for accessing memory. 
     //special function is to hold the offset for the zero page addressing mode.
     //The value of the X register can be loaded and saved in memory, compared with values held in memory or incremented and decremented.
 
-    fn reg_y(&self) -> u8 { self.index_registers[1] }//same to x register without special function, but can be used for addressing memory.
+    fn reg_y(&mut self) -> &mut u8 { &mut self.index_registers[1] }//same to x register without special function, but can be used for addressing memory.
     
     
     
@@ -346,34 +346,48 @@ impl CPU_6502{
 
             },
             37 => { //SBC
-
+            
             },
-            38 => { //STA
+            //sec,sbc etc.
 
+            38 => { //STA
+                self.write_memory(operand_address, self.accumulator);
             },
             39 => { //STX
-
+                self.data_bus = *self.reg_x();
+                self.write_memory(operand_address, self.data_bus);
             },
             40 => { //STY
-
+                self.data_bus = *self.reg_y();
+                self.write_memory(operand_address, self.data_bus);
             },
             41 => { //TAX
-
+                *self.reg_x() = self.accumulator;
+                self.update_Z(self.accumulator == 0);
+                self.update_N((self.accumulator & (1 << 7)) >> 7 == 1);
             },
             42 => { //TAY
-
+                *self.reg_y() = self.accumulator;
+                self.update_Z(self.accumulator == 0);
+                self.update_N((self.accumulator & (1 << 7)) >> 7 == 1);
             },
             43 => { //TSX
 
             },
             44 => { //TXA
+                self.accumulator = *self.reg_x();
 
+                self.update_Z(self.accumulator==0);
+                self.update_N((self.accumulator & (1 << 7)) >> 7 == 1);
             },
             45 => { //TXS
 
             },
             46 => { //TYA
+                self.accumulator = *self.reg_y();
 
+                self.update_Z(self.accumulator==0);
+                self.update_N((self.accumulator & (1 << 7)) >> 7 == 1);
             },
 
     
@@ -398,9 +412,9 @@ impl CPU_6502{
         data
     }
     
-    fn read_next_word(&mut self) -> u16 {
-        unimplemented!()
-    }
+    //fn read_next_word(&mut self) -> u16 {
+    //    unimplemented!()
+    //}
     
     fn read_memory(&mut self, addr: u16) -> u8 {
         self.data_bus= self.memory.read(addr);
