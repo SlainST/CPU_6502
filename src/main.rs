@@ -130,37 +130,43 @@ impl CPU_6502{
 
 
 
-    fn get_operand_address(&mut self, mode: &AddressingMode)-> u16{
+    fn get_operand_address(&mut self, mode: &AddressingMode)-> OperandOfMode{
         match mode {
             &AddressingMode::Implicit =>{
-                unimplemented!()
+                OperandOfMode::None
             }
             &AddressingMode::Accumulator =>{
-                unimplemented!()
+                OperandOfMode::Accumulator
             }
             &AddressingMode::Immediate => {
                 self.address_bus = self.program_counter; // it's supposed to already be in the program counter.
                 self.program_counter += 1;
+                OperandOfMode::Memory(self.address_bus)
             }
-            &AddressingMode::ZeroPage =>{
+            &AddressingMode::ZeroPage =>{ //In zero page mode only the least significant byte of the address is held in the instruction making it shorter by one byte (important for space saving) and one less memory fetch during execution (important for speed).
                 let hi:u16= 0x0000;
                 let lo:u16= self.read_next_byte() as u16;
                  //need to return 16 bit even if we have only 8 bit
-                self.address_bus=hi|lo
+                self.address_bus=hi|lo;
+                OperandOfMode::Memory(self.address_bus)
+                //An assembler will automatically select zero page addressing mode if the operand evaluates to a zero page address and the instruction supports the mode (not all do).
             }
             &AddressingMode::ZeroPageX =>{
-                unimplemented!()
+                *self.reg_x()= self.reg_x().wrapping_add( self.data_bus);
+                OperandOfMode::Register_X
             }
             &AddressingMode::ZeroPageY =>{
                 unimplemented!()
             }
             &AddressingMode::Relative =>{
-                unimplemented!()
+               self.address_bus=self.read_next_byte() as u16; 
+               OperandOfMode::Memory(self.address_bus)
             }
             &AddressingMode::Absolute =>{
                 let lo = self.read_next_byte() as u16;
                 let hi = self.read_next_byte() as u16;
                 self.address_bus=(hi << 8) | lo;
+                OperandOfMode::Memory(self.address_bus)
             }
             &AddressingMode::AbsoluteX =>{
                 unimplemented!()
@@ -180,7 +186,7 @@ impl CPU_6502{
             _ => panic!("Unknown mode: error of finding this mode"),
 
         }
-        self.address_bus
+        
     }
 
 
@@ -192,18 +198,18 @@ impl CPU_6502{
             0xa9 => {
                 cost = 2;
                 bytes = 2;
-                let addr:u16= self.get_operand_address(&AddressingMode::Immediate);
-                self.instruction_apply(addr, 23);
+                let operand: OperandOfMode = self.get_operand_address(&AddressingMode::Immediate);
+                self.instruction_apply(operand, 23);
             }
             _ => {}
         }
     }
 
 
-    pub fn instruction_apply(&mut self, operand_address: u16, instruction: u8) {
+    pub fn instruction_apply(&mut self, operand: OperandOfMode, instruction: u8) {
         match instruction {
             0 => { //ADC
-                self.read_memory(operand_address);
+                self.read_memory();
                 let mut bit7: bool= (self.accumulator & (1 << 7)) >> 7 == 1;
                 self.accumulator = self.accumulator.wrapping_add(self.data_bus);
                 let mut is_overflow: bool = (bit7 ==true) & ((self.accumulator & (1 << 7)) >> 7 == 0);
@@ -216,14 +222,14 @@ impl CPU_6502{
                 //hatalı ve daha V kodlanmadı, read_n kullanarak dene
             },
             1 => { //AND
-                self.accumulator = self.accumulator & self.read_memory(operand_address);
+                self.accumulator = self.accumulator & self.read_memory();
                 self.update_Z(self.accumulator == 0);
                 self.update_N((self.accumulator & (1 << 7)) >> 7 == 1);
             },
             2 => { //ASL
                 
                 
-                self.accumulator = self.read_memory(operand_address);
+                self.accumulator = self.read_memory();
                 let bit7: bool = (self.accumulator & (1 << 7)) >> 7 == 1;
                 self.accumulator = self.accumulator.wrapping_mul(2);
                 self.update_C(bit7);
@@ -237,7 +243,7 @@ impl CPU_6502{
 
             },
             5 => { //BEQ
-
+                //let temp:u8=self.read_memory(operand_address)-self.address_bus;
             },
             6 => { //BIT
 
@@ -291,7 +297,7 @@ impl CPU_6502{
 
             },
             23 => { //LDA
-                self.read_memory(operand_address);
+                self.read_memory();    
                 self.accumulator = self.data_bus;
                 self.update_Z(self.accumulator == 0);
                 self.update_N((self.accumulator & (1 << 7)) >> 7 == 1);
@@ -309,7 +315,7 @@ impl CPU_6502{
 
             },
             28 => { //ORA
-                self.accumulator = self.accumulator | self.read_memory(operand_address);
+                self.accumulator = self.accumulator | self.read_memory();
                 self.update_Z(self.accumulator == 0);
                 self.update_N((self.accumulator & (1 << 7)) >> 7 == 1);
 
@@ -328,7 +334,7 @@ impl CPU_6502{
             },
             33 => { //ROL
                 let bit7: bool = false;
-                self.accumulator = self.read_memory(operand_address);
+                self.accumulator = self.read_memory();
                 self.accumulator = self.accumulator.wrapping_mul(2);
                 self.accumulator = self.accumulator | bit7 as u8;
                 self.update_C(bit7);
@@ -351,15 +357,15 @@ impl CPU_6502{
             //sec,sbc etc.
 
             38 => { //STA
-                self.write_memory(operand_address, self.accumulator);
+                self.write_memory( self.accumulator);
             },
             39 => { //STX
                 self.data_bus = *self.reg_x();
-                self.write_memory(operand_address, self.data_bus);
+                self.write_memory( self.data_bus);
             },
             40 => { //STY
                 self.data_bus = *self.reg_y();
-                self.write_memory(operand_address, self.data_bus);
+                self.write_memory( self.data_bus);
             },
             41 => { //TAX
                 *self.reg_x() = self.accumulator;
@@ -416,12 +422,12 @@ impl CPU_6502{
     //    unimplemented!()
     //}
     
-    fn read_memory(&mut self, addr: u16) -> u8 {
-        self.data_bus= self.memory.read(addr);
+    fn read_memory(&mut self, ) -> u8 {
+        self.data_bus= self.memory.read(self.address_bus);
         return self.data_bus;
     }
-    fn write_memory(&mut self, addr:u16, data:u8){
-        self.memory.write(addr, data);
+    fn write_memory(&mut self,  data:u8){
+        self.memory.write(self.address_bus, data);
     }
 
 
@@ -457,6 +463,14 @@ fn clock(){
     //The 6502 has a clock cycle of 1 microsecond, which means that it takes 1 microsecond to execute one instruction.
 }
 
+pub enum OperandOfMode{
+    None,
+    Accumulator,
+    Memory(u16),
+    Register_X,
+    Register_Y,
+
+}
 pub enum AddressingMode {
     Implicit,
     Accumulator,
@@ -472,3 +486,4 @@ pub enum AddressingMode {
     IndexedIndirect,
     IndirectIndexed,   
 }
+
