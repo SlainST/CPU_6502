@@ -23,6 +23,9 @@ fn main() {
     _cpu.decode_opcode(0xa9);
 
 }
+//not: Sayfa geçişi döngüsü. Her komut belli sayıda saat döngüsü sürer (senin cost değişkenin). Çip AbsoluteX’te X’i önce yalnızca adresin düşük baytına ekler. Elde oluşursa, yani $10F0 + $20 = $1110 gibi yüksek bayt değişirse, düzeltmek için bir döngü daha harcar. Örneğin LDA abs,X normalde 4 döngü sürer, sayfa geçerse 5 döngü. AbsoluteY ve IndirectIndexed’da da aynı kural geçerli. Saklama komutlarında (STA abs,X gibi) bu ekstra döngü sayfa geçmese bile her zaman harcanır. Dallanmalarda dal alınırsa +1, alınıp sayfa da geçilirse +1 daha eklenir. Bunu yapabilmek için get_operand_address’in sayfa geçildiğini dışarıya bildirmesi gerekiyor. cost de şu an decode_opcode içinde yerel bir değişken olduğu için CPU struct’ında bir döngü sayacına dönüşmeli.
+
+
 //The 6502 does not have any special support of hardware devices so they must be mapped to regions of memory in order to exchange data with the hardware latches.
 
 
@@ -73,8 +76,7 @@ impl CPU_6502{
 
 
 
-    //The 6502 has a 8-bit accumulator, which is used for arithmetic and logic operations.
-    fn accumulator(&self) -> u8 { self.accumulator }
+
 
 
 
@@ -140,48 +142,77 @@ impl CPU_6502{
             }
             &AddressingMode::Immediate => {
                 self.address_bus = self.program_counter; // it's supposed to already be in the program counter.
-                self.program_counter += 1;
-                OperandOfMode::Memory(self.address_bus)
+                self.program_counter=self.program_counter.wrapping_add(1);
+                OperandOfMode::Memory
             }
             &AddressingMode::ZeroPage =>{ //In zero page mode only the least significant byte of the address is held in the instruction making it shorter by one byte (important for space saving) and one less memory fetch during execution (important for speed).
                 let hi:u16= 0x0000;
                 let lo:u16= self.read_next_byte() as u16;
                  //need to return 16 bit even if we have only 8 bit
                 self.address_bus=hi|lo;
-                OperandOfMode::Memory(self.address_bus)
+                OperandOfMode::Memory
                 //An assembler will automatically select zero page addressing mode if the operand evaluates to a zero page address and the instruction supports the mode (not all do).
             }
             &AddressingMode::ZeroPageX =>{
-                *self.reg_x()= self.reg_x().wrapping_add( self.data_bus);
-                OperandOfMode::Register_X
+                let hi:u16= 0x0000;
+
+                self.address_bus =hi |(self.reg_x().wrapping_add( self.read_next_byte())) as u16 ;
+                OperandOfMode::Memory
             }
             &AddressingMode::ZeroPageY =>{
-                unimplemented!()
+                let hi: u16 = 0x0000;
+                self.address_bus= hi | (self.reg_y().wrapping_add( self.read_next_byte())) as u16;
+                OperandOfMode::Memory
             }
             &AddressingMode::Relative =>{
-               self.address_bus=self.read_next_byte() as u16; 
-               OperandOfMode::Memory(self.address_bus)
+               self.address_bus=((self.read_next_byte() as i8) as u16).wrapping_add(self.program_counter);
+               OperandOfMode::Memory
             }
             &AddressingMode::Absolute =>{
                 let lo = self.read_next_byte() as u16;
                 let hi = self.read_next_byte() as u16;
                 self.address_bus=(hi << 8) | lo;
-                OperandOfMode::Memory(self.address_bus)
+                OperandOfMode::Memory
             }
             &AddressingMode::AbsoluteX =>{
-                unimplemented!()
+                let lo = self.read_next_byte() as u16;
+                let hi = self.read_next_byte() as u16;
+                self.address_bus=(hi << 8) | lo;
+                self.address_bus= self.address_bus.wrapping_add(*self.reg_x() as u16);
+                OperandOfMode::Memory
             }
             &AddressingMode::AbsoluteY =>{
-                unimplemented!()
+                let lo = self.read_next_byte() as u16;
+                let hi = self.read_next_byte() as u16;
+                self.address_bus=(hi << 8) | lo;
+                self.address_bus= self.address_bus.wrapping_add(*self.reg_y() as u16);
+                OperandOfMode::Memory
             }
             &AddressingMode::Indirect=>{
-                unimplemented!()
+                let lo: u8 = self.read_next_byte() ;
+                let hi: u8 = self.read_next_byte();
+                
+                self.address_bus = self.memory.read(((hi as u16) << 8) | lo as u16) as u16 | ((self.memory.read(((hi as u16) << 8) | (lo.wrapping_add(1 as u8) as u16)) as u16) << 8);
+               
+                
+                OperandOfMode::Memory
             }
             &AddressingMode::IndexedIndirect=>{
-                unimplemented!()
+                let hi: u16 = 0x0000;
+                let a= self.read_next_byte().wrapping_add(*self.reg_x());
+                //memory.read yerine read_memory kullanmak daha profesyonel olabilir. belki öncesinde self.address busa kaydederiz.
+                self.address_bus =   self.memory.read( hi | (a) as u16) as u16 | ((self.memory.read( hi |a.wrapping_add(1) as u16) as u16) << 8);
+
+                OperandOfMode::Memory
             }  
             &AddressingMode::IndirectIndexed =>{
-                unimplemented!()
+                 let hi: u16 = 0x0000;
+                 let a: u8 = self.read_next_byte();
+                 self.address_bus =   (self.memory.read( hi | a as u16) as u16 | ((self.memory.read( hi | a.wrapping_add(1) as u16) as u16) << 8)).wrapping_add(*self.reg_y() as u16);
+                 
+
+                 OperandOfMode::Memory
+
             }
             _ => panic!("Unknown mode: error of finding this mode"),
 
@@ -413,16 +444,21 @@ impl CPU_6502{
 
     // --- Mock helper functions (you will need to implement these based on your memory map) ---
     fn read_next_byte(&mut self) -> u8 {
-        let data = self.memory.read(self.program_counter);
-        self.program_counter +=1;
-        data
+        self.data_bus = self.memory.read(self.program_counter);
+        self.program_counter = self.program_counter.wrapping_add(1);
+        self.data_bus
+    }
+    fn read_next_word(&mut self) -> u16{
+        let lo = self.read_next_byte() as u16;
+        let hi = self.read_next_byte() as u16;
+        (hi << 8) | lo 
     }
     
     //fn read_next_word(&mut self) -> u16 {
     //    unimplemented!()
     //}
     
-    fn read_memory(&mut self, ) -> u8 {
+    fn read_memory(&mut self ) -> u8 {
         self.data_bus= self.memory.read(self.address_bus);
         return self.data_bus;
     }
@@ -466,9 +502,7 @@ fn clock(){
 pub enum OperandOfMode{
     None,
     Accumulator,
-    Memory(u16),
-    Register_X,
-    Register_Y,
+    Memory,
 
 }
 pub enum AddressingMode {
