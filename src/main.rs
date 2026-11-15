@@ -9,14 +9,25 @@ fn main() {
         data_bus: 0,
         accumulator: 0,
         index_registers: [0; 2],
-        stack_pointer: 0,
+        stack_pointer: 0xfd,
         status_register: 0x24,
         program_counter: 0,
         memory: _memory,
+        cycles: 0,
+        page_crossed: false,
     };
    
     
-    clock();
+    while (true){ //fetch loop
+        
+        let opcode = _cpu.read_next_byte();
+        if(opcode ==0x00){
+            break;
+        }
+
+
+        
+    }
 
 
 
@@ -56,8 +67,8 @@ struct CPU_6502{
     //The value of the program counter can be modified by executing a jump, a relative branch or..
     //..a subroutine call to another memory address or by returning from a subroutine or interrupt.
 
-
-
+    page_crossed: bool, //used to determine if a page boundary was crossed during an instruction fetch or data access. This is important for timing and cycle counting. But only 3 addressing modes uses it.
+    cycles: u64,
 
 
     memory:Memory
@@ -176,7 +187,10 @@ impl CPU_6502{
                 let lo = self.read_next_byte() as u16;
                 let hi = self.read_next_byte() as u16;
                 self.address_bus=(hi << 8) | lo;
+
                 self.address_bus= self.address_bus.wrapping_add(*self.reg_x() as u16);
+                
+                self.page_crossed = (self.address_bus>>8) != (hi);
                 OperandOfMode::Memory
             }
             &AddressingMode::AbsoluteY =>{
@@ -184,6 +198,8 @@ impl CPU_6502{
                 let hi = self.read_next_byte() as u16;
                 self.address_bus=(hi << 8) | lo;
                 self.address_bus= self.address_bus.wrapping_add(*self.reg_y() as u16);
+                
+                self.page_crossed = (self.address_bus>>8) != (hi);
                 OperandOfMode::Memory
             }
             &AddressingMode::Indirect=>{
@@ -204,10 +220,14 @@ impl CPU_6502{
                 OperandOfMode::Memory
             }  
             &AddressingMode::IndirectIndexed =>{
-                 let hi: u16 = 0x0000;
-                 let a: u8 = self.read_next_byte();
-                 self.address_bus =   (self.memory.read( hi | a as u16) as u16 | ((self.memory.read( hi | a.wrapping_add(1) as u16) as u16) << 8)).wrapping_add(*self.reg_y() as u16);
-                 
+                let hi: u16 = 0x0000;
+                
+                let a: u8 = self.read_next_byte();
+
+                let temp=self.memory.read( hi | (a.wrapping_add(1)) as u16) as u16;
+
+                self.address_bus =   (self.memory.read( hi | a as u16) as u16 | ((temp) << 8)).wrapping_add(*self.reg_y() as u16);
+                self.page_crossed = (self.address_bus>>8) != (temp);
 
                  OperandOfMode::Memory
 
@@ -220,19 +240,183 @@ impl CPU_6502{
 
 
     pub fn decode_opcode(&mut self, opcode:u8){
-        let mut cost :u8= 0;
-        let mut bytes:u8= 0;
+  
         
-        match opcode{
-            0xa9 => {
-                cost = 2;
-                bytes = 2;
-                let operand: OperandOfMode = self.get_operand_address(&AddressingMode::Immediate);
-                self.instruction_apply(operand, 29);
+
+        let (instruction, mode,cycles, page_penalty): (u8,AddressingMode, u64, bool) = 
+            match opcode{
+                0x69 => (0,AddressingMode::Immediate, 2, false),
+                0x65 => (0,AddressingMode::ZeroPage, 3, false),
+                0x75 => (0,AddressingMode::ZeroPageX, 4, false),
+                0x6d => (0,AddressingMode::Absolute, 4, false),
+                0x7d => (0,AddressingMode::AbsoluteX, 4, true),
+                0x79 => (0,AddressingMode::AbsoluteY, 4, true),
+                0x61 => (0,AddressingMode::IndexedIndirect, 6, false),
+                0x71 => (0,AddressingMode::IndirectIndexed, 5, true),
+                
+                0x29 => (1,AddressingMode::Immediate, 2, false),
+                0x25 => (1,AddressingMode::ZeroPage, 3, false),
+                0x35 => (1,AddressingMode::ZeroPageX, 4, false),
+                0x2d => (1,AddressingMode::Absolute, 4, false),
+                0x3d => (1,AddressingMode::AbsoluteX, 4, true),
+                0x39 => (1,AddressingMode::AbsoluteY, 4, true),
+                0x21 => (1,AddressingMode::IndexedIndirect, 6, false),
+                0x31 => (1,AddressingMode::IndirectIndexed, 5, true),
+
+                0x0a => (2,AddressingMode::Accumulator, 2, false),
+                0x06 => (2,AddressingMode::ZeroPage, 5, false),
+                0x16 => (2,AddressingMode::ZeroPageX, 6, false),
+                0x0e => (2,AddressingMode::Absolute, 6, false),
+                0x1e => (2,AddressingMode::AbsoluteX, 7, false),
+                0x90 => (3,AddressingMode::Relative, 2, false),
+                0xb0 => (4,AddressingMode::Relative, 2, false),
+                0xf0 => (5,AddressingMode::Relative, 2, false),
+                0x24 => (6,AddressingMode::ZeroPage, 3, false),
+                0x2c => (6,AddressingMode::Absolute, 4, false),
+                0x30 => (7,AddressingMode::Relative, 2, false),
+                0xd0 => (8,AddressingMode::Relative, 2, false),
+                0x10 => (9,AddressingMode::Relative, 2, false),
+                0x00 => (10,AddressingMode::Implicit, 7, false),
+                0x50 => (11,AddressingMode::Relative, 2, false),
+                0x70 => (12,AddressingMode::Relative, 2, false),
+                0x18 => (13,AddressingMode::Implicit, 2, false),
+                0xd8 => (14,AddressingMode::Implicit, 2, false),
+                0x58 => (15,AddressingMode::Implicit, 2, false),
+                0xb8 => (16,AddressingMode::Implicit, 2, false),
+                0xc9 => (17,AddressingMode::Immediate, 2, false),
+                0xc5 => (17,AddressingMode::ZeroPage, 3, false),
+                0xd5 => (17,AddressingMode::ZeroPageX, 4, false),
+                0xcd => (17,AddressingMode::Absolute, 4, false),
+                0xdd => (17,AddressingMode::AbsoluteX, 4, true),
+                0xd9 => (17,AddressingMode::AbsoluteY, 4, true),
+                0xc1 => (17,AddressingMode::IndexedIndirect, 6, false),
+                0xd1 => (17,AddressingMode::IndirectIndexed, 5, true),
+                0xe0 => (18,AddressingMode::Immediate, 2, false),
+                0xe4 => (18,AddressingMode::ZeroPage, 3, false),
+                0xec => (18,AddressingMode::Absolute, 4, false),
+                0xc0 => (19,AddressingMode::Immediate, 2, false),
+                0xc4 => (19,AddressingMode::ZeroPage, 3, false),
+                0xcc => (19,AddressingMode::Absolute, 4, false),
+                0xc6 => (20,AddressingMode::ZeroPage, 5, false),
+                0xd6 => (20,AddressingMode::ZeroPageX, 6, false),
+                0xce => (20,AddressingMode::Absolute, 6, false),
+                0xde => (20,AddressingMode::AbsoluteX, 7, false),
+                0xca => (21,AddressingMode::Implicit, 2, false),
+                0x88 => (22,AddressingMode::Implicit, 2, false),
+                0x49 => (23,AddressingMode::Immediate, 2, false),
+                0x45 => (23,AddressingMode::ZeroPage, 3, false),
+                0x55 => (23,AddressingMode::ZeroPageX, 4, false),
+                0x4d => (23,AddressingMode::Absolute, 4, false),
+                0x5d => (23,AddressingMode::AbsoluteX, 4, true),
+                0x59 => (23,AddressingMode::AbsoluteY, 4, true),
+                0x41 => (23,AddressingMode::IndexedIndirect, 6, false),
+                0x51 => (23,AddressingMode::IndirectIndexed, 5, true),
+                0xe6 => (24,AddressingMode::ZeroPage, 5, false),
+                0xf6 => (24,AddressingMode::ZeroPageX, 6, false),
+                0xee => (24,AddressingMode::Absolute, 6, false),
+                0xfe => (24,AddressingMode::AbsoluteX, 7, false),
+                0xe8 => (25,AddressingMode::Implicit, 2, false),
+                0xc8 => (26,AddressingMode::Implicit, 2, false),
+                0x4c => (27,AddressingMode::Absolute, 3, false),
+                0x6c => (27,AddressingMode::Indirect, 5, false),
+                0x20 => (28,AddressingMode::Absolute, 6, false),
+                0xa9 => (29,AddressingMode::Immediate, 2, false),
+                0xa5 => (29,AddressingMode::ZeroPage, 3, false),
+                0xb5 => (29,AddressingMode::ZeroPageX, 4, false),
+                0xad => (29,AddressingMode::Absolute, 4, false),
+                0xbd => (29,AddressingMode::AbsoluteX, 4, true),
+                0xb9 => (29,AddressingMode::AbsoluteY, 4, true),
+                0xa1 => (29,AddressingMode::IndexedIndirect, 6, false),
+                0xb1 => (29,AddressingMode::IndirectIndexed, 5, true),
+                0xa2 => (30,AddressingMode::Immediate, 2, false),
+                0xa6 => (30,AddressingMode::ZeroPage, 3, false),
+                0xb6 => (30,AddressingMode::ZeroPageY, 4, false),
+                0xae => (30,AddressingMode::Absolute, 4, false),
+                0xbe => (30,AddressingMode::AbsoluteY, 4, true),
+                0xa0 => (31,AddressingMode::Immediate, 2, false),
+                0xa4 => (31,AddressingMode::ZeroPage, 3, false),
+                0xb4 => (31,AddressingMode::ZeroPageX, 4, false),
+                0xac => (31,AddressingMode::Absolute, 4, false),
+                0xbc => (31,AddressingMode::AbsoluteX, 4, true),
+                0x4a => (32,AddressingMode::Accumulator, 2, false),
+                0x46 => (32,AddressingMode::ZeroPage, 5, false),
+                0x56 => (32,AddressingMode::ZeroPageX, 6, false),
+                0x4e => (32,AddressingMode::Absolute, 6, false),
+                0x5e => (32,AddressingMode::AbsoluteX, 7, false),
+                0xea => (33,AddressingMode::Implicit, 2, false),
+                0x09 => (34,AddressingMode::Immediate, 2, false),
+                0x05 => (34,AddressingMode::ZeroPage, 3, false),
+                0x15 => (34,AddressingMode::ZeroPageX, 4, false),
+                0x0d => (34,AddressingMode::Absolute, 4, false),
+                0x1d => (34,AddressingMode::AbsoluteX, 4, true),
+                0x19 => (34,AddressingMode::AbsoluteY, 4, true),
+                0x01 => (34,AddressingMode::IndexedIndirect, 6, false),
+                0x11 => (34,AddressingMode::IndirectIndexed, 5, true),
+                0x48 => (35,AddressingMode::Implicit, 3, false),
+                0x08 => (36,AddressingMode::Implicit, 3, false),
+                0x68 => (37,AddressingMode::Implicit, 4, false),
+                0x28 => (38,AddressingMode::Implicit, 4, false),
+                0x2a => (39,AddressingMode::Accumulator, 2, false),
+                0x26 => (39,AddressingMode::ZeroPage, 5, false),
+                0x36 => (39,AddressingMode::ZeroPageX, 6, false),
+                0x2e => (39,AddressingMode::Absolute, 6, false),
+                0x3e => (39,AddressingMode::AbsoluteX, 7, false),
+                0x6a => (40,AddressingMode::Accumulator, 2, false),
+                0x66 => (40,AddressingMode::ZeroPage, 5, false),
+                0x76 => (40,AddressingMode::ZeroPageX, 6, false),
+                0x6e => (40,AddressingMode::Absolute, 6, false),
+                0x7e => (40,AddressingMode::AbsoluteX, 7, false),
+                0x40 => (41,AddressingMode::Implicit, 6, false),
+                0x60 => (42,AddressingMode::Implicit, 6, false),
+                0xe9 => (43,AddressingMode::Immediate, 2, false),
+                0xe5 => (43,AddressingMode::ZeroPage, 3, false),
+                0xf5 => (43,AddressingMode::ZeroPageX, 4, false),
+                0xed => (43,AddressingMode::Absolute, 4, false),
+                0xfd => (43,AddressingMode::AbsoluteX, 4, true),
+                0xf9 => (43,AddressingMode::AbsoluteY, 4, true),
+                0xe1 => (43,AddressingMode::IndexedIndirect, 6, false),
+                0xf1 => (43,AddressingMode::IndirectIndexed, 5, true),
+                0x38 => (44,AddressingMode::Implicit, 2, false),
+                0xf8 => (45,AddressingMode::Implicit, 2, false),
+                0x78 => (46,AddressingMode::Implicit, 2, false),
+                0x85 => (47,AddressingMode::ZeroPage, 3, false),
+                0x95 => (47,AddressingMode::ZeroPageX, 4, false),
+                0x8d => (47,AddressingMode::Absolute, 4, false),
+                0x9d => (47,AddressingMode::AbsoluteX, 5, false),
+                0x99 => (47,AddressingMode::AbsoluteY, 5, false),
+                0x81 => (47,AddressingMode::IndexedIndirect, 6, false),
+                0x91 => (47,AddressingMode::IndirectIndexed, 6, false),
+                0x86 => (48,AddressingMode::ZeroPage, 3, false),
+                0x96 => (48,AddressingMode::ZeroPageY, 4, false),
+                0x8e => (48,AddressingMode::Absolute, 4, false),
+                0x84 => (49,AddressingMode::ZeroPage, 3, false),
+                0x94 => (49,AddressingMode::ZeroPageX, 4, false),
+                0x8c => (49,AddressingMode::Absolute, 4, false),
+                0xaa => (50,AddressingMode::Implicit, 2, false),
+                0xa8 => (51,AddressingMode::Implicit, 2, false),
+                0xba => (52,AddressingMode::Implicit, 2, false),
+                0x8a => (53,AddressingMode::Implicit, 2, false),
+                0x9a => (54,AddressingMode::Implicit, 2, false),
+                0x98 => (55,AddressingMode::Implicit, 2, false),
+
+                _ => panic!("Unknown opcode: {:02X}", opcode),
+            };
+
+
+
+            self.page_crossed = false;
+            let operand:OperandOfMode = self.get_operand_address(&mode);
+            
+            if (self.page_crossed && page_penalty){
+                self.cycles+=1;
             }
-            _ => {}
-        }
+
+            self.instruction_apply(operand, instruction);
+            self.cycles = self.cycles + cycles;
+
     }
+
+
 
 
     pub fn instruction_apply(&mut self, operand: OperandOfMode, instruction: u8) {
@@ -271,15 +455,30 @@ impl CPU_6502{
                 if matches!(operand, OperandOfMode::Accumulator){self.accumulator=d} else {self.write_memory(d);} 
             },
             3 => { //BCC
-                if(self.read_C()==false) {self.program_counter=self.address_bus}  
+                if(self.read_C()==false) {
+                    self.cycles +=1;
+                    if ((self.program_counter>>8) != (self.address_bus>>8)){
+                        self.cycles +=1;
+                    }
+                    
+                    self.program_counter=self.address_bus
+                }  
             },
             4 => { //BCS
-                if(self.read_C()==true) {self.program_counter=self.address_bus}  
-
+                if(self.read_C()==true) {
+                    self.cycles +=1;
+                    if ((self.program_counter>>8) != (self.address_bus>>8)){
+                        self.cycles +=1;}
+                    self.program_counter=self.address_bus
+                    }
             },
             5 => { //BEQ
-                if(self.read_Z()==true) {self.program_counter=self.address_bus}  
-
+                if(self.read_Z()==true) {
+                    self.cycles +=1;
+                    if ((self.program_counter>>8) != (self.address_bus>>8)){
+                        self.cycles +=1;}
+                    self.program_counter=self.address_bus}  
+                    
             },
             6 => { //BIT
                 let d:u8 = self.read_memory();
@@ -288,17 +487,29 @@ impl CPU_6502{
                 self.update_N((self.data_bus &(1<<7))>>7 ==1);
             },
             7 => {//BMI
-                if(self.read_N()==true) {self.program_counter=self.address_bus}  
+                if(self.read_N()==true) {
+                    self.cycles +=1;
+                    if ((self.program_counter>>8) != (self.address_bus>>8)){
+                        self.cycles +=1;}
+                    self.program_counter=self.address_bus}   
 
 
             },
             8 => {//BNE
-                if(self.read_Z()==false) {self.program_counter=self.address_bus}      
+                if(self.read_Z()==false) {
+                    self.cycles +=1;
+                    if ((self.program_counter>>8) != (self.address_bus>>8)){
+                        self.cycles +=1;}
+                    self.program_counter=self.address_bus}     
             },
 
 
             9 => { //BPL
-                if(self.read_N()==false) {self.program_counter=self.address_bus}  
+                if(self.read_N()==false) {
+                    self.cycles +=1;
+                    if ((self.program_counter>>8) != (self.address_bus>>8)){
+                        self.cycles +=1;}
+                    self.program_counter=self.address_bus}    
             },
             10 => {//BRK
                 let stack:u16= 0x0100;
@@ -330,10 +541,18 @@ impl CPU_6502{
             },
 
             11 => { //BVC
-                if(self.read_V()==false) {self.program_counter=self.address_bus}  
+                if(self.read_V()==false) {
+                    self.cycles +=1;
+                    if ((self.program_counter>>8) != (self.address_bus>>8)){
+                        self.cycles +=1;}
+                    self.program_counter=self.address_bus}  
             },
             12 => { //BVS
-                if(self.read_V()==true) {self.program_counter=self.address_bus}  
+                if(self.read_V()==true) {
+                    self.cycles +=1;
+                    if ((self.program_counter>>8) != (self.address_bus>>8)){
+                        self.cycles +=1;}
+                    self.program_counter=self.address_bus}  
             },
             13 => { //CLC
                 self.update_C(false);
@@ -737,7 +956,7 @@ pub enum AddressingMode {
     Immediate,
     ZeroPage,
     ZeroPageX,
-    ZeroPageY,
+    ZeroPageY,        
     Relative,
     Absolute,
     AbsoluteX,
