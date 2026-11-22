@@ -1,9 +1,20 @@
 #![allow(warnings)]
+
+const CPU_HZ:u64 = 1000000; 
+const SLICE:u64 = 20000; //20.000 cycles is 20ms at 1MHZ
+
+//reserved addresses:
+const BINARY_FROM_ASSEMBLY: &[u8] = include_bytes!("../target_assembly/emulate.bin");
+const LOAD_ADDRESS: u16 = 0x0600;
 fn main() {
     
-    let _memory = Memory {
-        data: [0x00u8; 65536],
+    let mut _memory= Memory { 
+        data: [0x00u8; 65536] 
     };
+
+    let sub_slice_memory=&mut _memory.data[LOAD_ADDRESS as usize .. (LOAD_ADDRESS.wrapping_add(BINARY_FROM_ASSEMBLY.len() as u16) as usize) ];
+    sub_slice_memory.copy_from_slice(BINARY_FROM_ASSEMBLY);
+    
     let mut _cpu = CPU_6502 {
         address_bus: 0,
         data_bus: 0,
@@ -11,27 +22,34 @@ fn main() {
         index_registers: [0; 2],
         stack_pointer: 0xfd,
         status_register: 0x24,
-        program_counter: 0,
+        program_counter: 0x0600,
         memory: _memory,
         cycles: 0,
         page_crossed: false,
     };
    
     
+    
+
     while (true){ //fetch loop
         
         let opcode = _cpu.read_next_byte();
         if(opcode ==0x00){
             break;
         }
-
-
+    
+        _cpu.decode_opcode(opcode);
         
     }
 
-
-
-    _cpu.decode_opcode(0xa9);
+    println!();
+    print!("A: ${:02X},   ",_cpu.accumulator); //A
+    print!("X: ${:02X},   ",_cpu.reg_x()); //X
+    print!("Y: ${:02X},   ",_cpu.reg_y()); //Y
+    print!("status register as whole: ${:02X},   ",_cpu.status_register);//status reg
+    print!("SP: ${:02X},   ",_cpu.stack_pointer); //SP
+    print!("PC: ${:04X},   ",_cpu.program_counter); //PC
+    println!();
 
 }
 //not: Sayfa geçişi dönuüsü. Her komut belli sayıda saat döngüsü sürer (senin cost değişkenin). Çip AbsoluteX’te X’i önce yalnızca adresin düşük baytına ekler. Elde oluşursa, yani $10F0 + $20 = $1110 gibi yüksek bayt değişirse, düzeltmek için bir döngü daha harcar. Örneğin LDA abs,X normalde 4 döngü sürer, sayfa geçerse 5 döngü. AbsoluteY ve IndirectIndexed’da da aynı kural geçerli. Saklama komutlarında (STA abs,X gibi) bu ekstra döngü sayfa geçmese bile her zaman harcanır. Dallanmalarda dal alınırsa +1, alınıp sayfa da geçilirse +1 daha eklenir. Bunu yapabilmek için get_operand_address’in sayfa geçildiğini dışarıya bildirmesi gerekiyor. cost de şu an decode_opcode içinde yerel bir değişken olduğu için CPU struct’ında bir döngü sayacına dönüşmeli.
@@ -133,6 +151,7 @@ impl CPU_6502{
     fn read_Z(&self) -> bool { (self.status_register & CPU_6502::Z) != 0 }
     fn read_C(&self) -> bool { (self.status_register & CPU_6502::C) != 0 }
 
+    //B flag not really exist since it's something that happen with BRK command
     
 
 
@@ -942,6 +961,8 @@ impl Memory{
 fn clock(){
     //1 MHz means a million clock cycles per second, not a million instructions. Each instruction takes 2–7 cycles. The NES CPU also runs at about 1.79 MHz, not 1 MHz.
     //The 6502 has a clock cycle of 1 microsecond, which means that it takes 1 microsecond to execute one clock cycle cycle.
+
+    
 }
 
 pub enum OperandOfMode{
