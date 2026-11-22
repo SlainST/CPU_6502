@@ -53,7 +53,7 @@ fn main() {
 
 }
 //not: Sayfa geçişi dönuüsü. Her komut belli sayıda saat döngüsü sürer (senin cost değişkenin). Çip AbsoluteX’te X’i önce yalnızca adresin düşük baytına ekler. Elde oluşursa, yani $10F0 + $20 = $1110 gibi yüksek bayt değişirse, düzeltmek için bir döngü daha harcar. Örneğin LDA abs,X normalde 4 döngü sürer, sayfa geçerse 5 döngü. AbsoluteY ve IndirectIndexed’da da aynı kural geçerli. Saklama komutlarında (STA abs,X gibi) bu ekstra döngü sayfa geçmese bile her zaman harcanır. Dallanmalarda dal alınırsa +1, alınıp sayfa da geçilirse +1 daha eklenir. Bunu yapabilmek için get_operand_address’in sayfa geçildiğini dışarıya bildirmesi gerekiyor. cost de şu an decode_opcode içinde yerel bir değişken olduğu için CPU struct’ında bir döngü sayacına dönüşmeli.
-//not: Şimdiden yapabileceğin, sonra işine yarayacak birkaç şey:
+//not: Şimdiden yapabileceğin, sonra işine yarayacak birkaç sey:
 
 //Opcode tablosu: Her opcode için komut, adresleme modu, bayt sayısı ve döngü sayısını tek bir tabloda tut. Blok seviyesinde bu tablo kod çözücü ROM’una dönüşecek.
 //Bayrak hesaplarını ayrı fonksiyonlara koy. Z/N güncellemeleri ve ADC’deki C/V hesabı gibi. Bunlar blok seviyesinde de aynen kullanılacak.
