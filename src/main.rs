@@ -1,20 +1,20 @@
 #![allow(warnings)]
 
-const CPU_HZ:u64 = 1000000; 
+const CPU_HZ:u64 = 1000000;
 const SLICE:u64 = 20000; //20.000 cycles is 20ms at 1MHZ
 
 //reserved addresses:
 const BINARY_FROM_ASSEMBLY: &[u8] = include_bytes!("../target_assembly/emulate.bin");
 const LOAD_ADDRESS: u16 = 0x0600;
 fn main() {
-    
-    let mut _memory= Memory { 
-        data: [0x00u8; 65536] 
+
+    let mut _memory= Memory {
+        data: [0x00u8; 65536]
     };
 
     let sub_slice_memory=&mut _memory.data[LOAD_ADDRESS as usize .. (LOAD_ADDRESS.wrapping_add(BINARY_FROM_ASSEMBLY.len() as u16) as usize) ];
     sub_slice_memory.copy_from_slice(BINARY_FROM_ASSEMBLY);
-    
+
     let mut _cpu = CPU_6502 {
         address_bus: 0,
         data_bus: 0,
@@ -27,19 +27,19 @@ fn main() {
         cycles: 0,
         page_crossed: false,
     };
-   
-    
-    
+
+
+
 
     while (true){ //fetch loop
-        
+
         let opcode = _cpu.read_next_byte();
         if(opcode ==0x00){
             break;
         }
-    
+
         _cpu.decode_opcode(opcode);
-        
+
     }
 
     println!();
@@ -80,7 +80,7 @@ struct CPU_6502{
     //the stack pointer is initialized to $FF on reset, which means that the first byte pushed onto the stack will be stored at $01FF. the hardware doesn’t set SP to $FF on reset. Programs usually do that themselves, and after reset SP is $FD.
     //CPU doesnt detect stack overflow or underflow and it will most likely result in a crash.
 
-    program_counter: u16,//The program counter is a 16 bit register which points to the next instruction to be executed. 
+    program_counter: u16,//The program counter is a 16 bit register which points to the next instruction to be executed.
     //The value of program counter is modified automatically as instructions are executed.
     //The value of the program counter can be modified by executing a jump, a relative branch or..
     //..a subroutine call to another memory address or by returning from a subroutine or interrupt.
@@ -92,15 +92,15 @@ struct CPU_6502{
     memory:Memory
 }
 impl CPU_6502{
-    //The 6502 has a 16-bit address bus, which allows it to address 64KB of memory. 
-    
+    //The 6502 has a 16-bit address bus, which allows it to address 64KB of memory.
 
-    
+
+
 
     //The 6502 has a 8-bit data bus, which allows it to read and write 8 bits of data at a time.
     fn data_bus_cycle(&mut self) {
         unimplemented!()
-        //self.data_bus = self.read_memory(self.address_bus); 
+        //self.data_bus = self.read_memory(self.address_bus);
     }
 
 
@@ -110,25 +110,25 @@ impl CPU_6502{
 
 
     //The 6502 has a 8-bit index registers, which are used for addressing memory.
-    fn reg_x(&mut self) -> &mut u8 { &mut self.index_registers[0] }//hold counters or offsets for accessing memory. 
+    fn reg_x(&mut self) -> &mut u8 { &mut self.index_registers[0] }//hold counters or offsets for accessing memory.
     //X’s special job is being the only register that can read or set SP (via TSX/TXS), not zero page addressing.
     //The value of the X register can be loaded and saved in memory, compared with values held in memory or incremented and decremented.
 
     fn reg_y(&mut self) -> &mut u8 { &mut self.index_registers[1] }//same to x register without special function, but can be used for addressing memory.
-    
-    
-    
+
+
+
     //The 6502 has a 8-bit stack pointer, which is used for subroutine calls and interrupts. it points next free location on stack
-    
-    
-    
-    
+
+
+
+
     //The 6502 has a 8-bit status register, which is used to indicate the state of the CPU.
 
     // Status register bits: N V - B D I Z C (bits 7 through 0).
     // Flags are stored in `status_register` using the bit assignments above.
     pub const N: u8 = 1 << 7; // Negative flag, is set if the result of the last operation had bit 7 set to a one.
-    pub const V: u8 = 1 << 6; // Overflow flag, is set during arithmetic operations if the result has yielded an invalid 2's complement result (e.g. adding to positive numbers and ending up with a negative result: 64 + 64 => -128). It is determined by looking at the carry between bits 6 and 7 and between bit 7 and the carry flag.its set 
+    pub const V: u8 = 1 << 6; // Overflow flag, is set during arithmetic operations if the result has yielded an invalid 2's complement result (e.g. adding to positive numbers and ending up with a negative result: 64 + 64 => -128). It is determined by looking at the carry between bits 6 and 7 and between bit 7 and the carry flag.its set
      // Break flag, is set when a BRK instruction executed and an interrupt has been generated to process it.
     pub const D: u8 = 1 << 3; // Decimal flag, while in decimal mode processor will obey the rules of BCD arithmetic for ADC and SBC instructions. this mode is not supported on the NES.
     pub const I: u8 = 1 << 2; // Interrupt  disable flag, CPU wont answer to interrupts if this flag is set.
@@ -137,7 +137,7 @@ impl CPU_6502{
 
     fn update_N(&mut self, value: bool){ if value == true { self.status_register |= CPU_6502::N; } else { self.status_register &= !CPU_6502::N; } }
     fn update_V(&mut self, value: bool){ if value == true { self.status_register |= CPU_6502::V; } else { self.status_register &= !CPU_6502::V; } }
-    
+
     fn update_D(&mut self, value: bool){ if value == true { self.status_register |= CPU_6502::D; } else { self.status_register &= !CPU_6502::D; } }
     fn update_I(&mut self, value: bool){ if value == true { self.status_register |= CPU_6502::I; } else { self.status_register &= !CPU_6502::I; } }
     fn update_Z(&mut self, value: bool){ if value == true { self.status_register |= CPU_6502::Z; } else { self.status_register &= !CPU_6502::Z; } }
@@ -145,14 +145,14 @@ impl CPU_6502{
 
     fn read_N(&self) -> bool { (self.status_register & CPU_6502::N) != 0 }
     fn read_V(&self) -> bool { (self.status_register & CPU_6502::V) != 0 }
-    
+
     fn read_D(&self) -> bool { (self.status_register & CPU_6502::D) != 0 }
     fn read_I(&self) -> bool { (self.status_register & CPU_6502::I) != 0 }
     fn read_Z(&self) -> bool { (self.status_register & CPU_6502::Z) != 0 }
     fn read_C(&self) -> bool { (self.status_register & CPU_6502::C) != 0 }
 
     //B flag not really exist since it's something that happen with BRK command
-    
+
 
 
     //The 6502 has a 16-bit program counter, which is used to keep track of the next instruction that will be executed.
@@ -208,7 +208,7 @@ impl CPU_6502{
                 self.address_bus=(hi << 8) | lo;
 
                 self.address_bus= self.address_bus.wrapping_add(*self.reg_x() as u16);
-                
+
                 self.page_crossed = (self.address_bus>>8) != (hi);
                 OperandOfMode::Memory
             }
@@ -217,17 +217,17 @@ impl CPU_6502{
                 let hi = self.read_next_byte() as u16;
                 self.address_bus=(hi << 8) | lo;
                 self.address_bus= self.address_bus.wrapping_add(*self.reg_y() as u16);
-                
+
                 self.page_crossed = (self.address_bus>>8) != (hi);
                 OperandOfMode::Memory
             }
             &AddressingMode::Indirect=>{
                 let lo: u8 = self.read_next_byte() ;
                 let hi: u8 = self.read_next_byte();
-                
+
                 self.address_bus = self.memory.read(((hi as u16) << 8) | lo as u16) as u16 | ((self.memory.read(((hi as u16) << 8) | (lo.wrapping_add(1 as u8) as u16)) as u16) << 8);
-               
-                
+
+
                 OperandOfMode::Memory
             }
             &AddressingMode::IndexedIndirect=>{
@@ -237,10 +237,10 @@ impl CPU_6502{
                 self.address_bus =   self.memory.read( hi | (a) as u16) as u16 | ((self.memory.read( hi |a.wrapping_add(1) as u16) as u16) << 8);
 
                 OperandOfMode::Memory
-            }  
+            }
             &AddressingMode::IndirectIndexed =>{
                 let hi: u16 = 0x0000;
-                
+
                 let a: u8 = self.read_next_byte();
 
                 let temp=self.memory.read( hi | (a.wrapping_add(1)) as u16) as u16;
@@ -254,15 +254,15 @@ impl CPU_6502{
             _ => panic!("Unknown mode: error of finding this mode"),
 
         }
-        
+
     }
 
 
     pub fn decode_opcode(&mut self, opcode:u8){
-  
-        
 
-        let (instruction, mode,cycles, page_penalty): (u8,AddressingMode, u64, bool) = 
+
+
+        let (instruction, mode,cycles, page_penalty): (u8,AddressingMode, u64, bool) =
             match opcode{
                 0x69 => (0,AddressingMode::Immediate, 2, false),
                 0x65 => (0,AddressingMode::ZeroPage, 3, false),
@@ -272,7 +272,7 @@ impl CPU_6502{
                 0x79 => (0,AddressingMode::AbsoluteY, 4, true),
                 0x61 => (0,AddressingMode::IndexedIndirect, 6, false),
                 0x71 => (0,AddressingMode::IndirectIndexed, 5, true),
-                
+
                 0x29 => (1,AddressingMode::Immediate, 2, false),
                 0x25 => (1,AddressingMode::ZeroPage, 3, false),
                 0x35 => (1,AddressingMode::ZeroPageX, 4, false),
@@ -425,7 +425,7 @@ impl CPU_6502{
 
             self.page_crossed = false;
             let operand:OperandOfMode = self.get_operand_address(&mode);
-            
+
             if (self.page_crossed && page_penalty){
                 self.cycles+=1;
             }
@@ -441,7 +441,7 @@ impl CPU_6502{
     pub fn instruction_apply(&mut self, operand: OperandOfMode, instruction: u8) {
         match instruction {
             0 => { //ADC
-                
+
                 let bit7_1: bool= (self.accumulator & (1 << 7)) >> 7 == 1;
                 let mut is_overflow1: bool = false;
                 let mut is_overflow2: bool = false;
@@ -451,7 +451,7 @@ impl CPU_6502{
                 (self.accumulator, is_overflow1) = self.accumulator.overflowing_add(self.data_bus);
                 (self.accumulator, is_overflow2) = self.accumulator.overflowing_add(self.read_C() as u8);
                 let bit7_2: bool = (self.accumulator & (1 << 7)) >> 7 == 1;
-                
+
                 self.update_Z(self.accumulator == 0);
                 self.update_C(is_overflow1  | is_overflow2);
                 self.update_N((self.accumulator & (1 << 7)) >> 7 == 1);
@@ -463,7 +463,7 @@ impl CPU_6502{
                 self.update_N((self.accumulator & (1 << 7)) >> 7 == 1);
             },
             2 => { //ASL
-                
+
                 let mut d:u8 = if matches!(operand, OperandOfMode::Accumulator){self.accumulator} else {self.read_memory()};
 
                 let bit7: bool = (d & (1 << 7)) >> 7 == 1;
@@ -471,7 +471,7 @@ impl CPU_6502{
                 self.update_C(bit7);
                 self.update_Z(d == 0);
                 self.update_N((d & (1 << 7)) >> 7 == 1);
-                if matches!(operand, OperandOfMode::Accumulator){self.accumulator=d} else {self.write_memory(d);} 
+                if matches!(operand, OperandOfMode::Accumulator){self.accumulator=d} else {self.write_memory(d);}
             },
             3 => { //BCC
                 if(self.read_C()==false) {
@@ -479,9 +479,9 @@ impl CPU_6502{
                     if ((self.program_counter>>8) != (self.address_bus>>8)){
                         self.cycles +=1;
                     }
-                    
+
                     self.program_counter=self.address_bus
-                }  
+                }
             },
             4 => { //BCS
                 if(self.read_C()==true) {
@@ -496,8 +496,8 @@ impl CPU_6502{
                     self.cycles +=1;
                     if ((self.program_counter>>8) != (self.address_bus>>8)){
                         self.cycles +=1;}
-                    self.program_counter=self.address_bus}  
-                    
+                    self.program_counter=self.address_bus}
+
             },
             6 => { //BIT
                 let d:u8 = self.read_memory();
@@ -510,7 +510,7 @@ impl CPU_6502{
                     self.cycles +=1;
                     if ((self.program_counter>>8) != (self.address_bus>>8)){
                         self.cycles +=1;}
-                    self.program_counter=self.address_bus}   
+                    self.program_counter=self.address_bus}
 
 
             },
@@ -519,7 +519,7 @@ impl CPU_6502{
                     self.cycles +=1;
                     if ((self.program_counter>>8) != (self.address_bus>>8)){
                         self.cycles +=1;}
-                    self.program_counter=self.address_bus}     
+                    self.program_counter=self.address_bus}
             },
 
 
@@ -528,7 +528,7 @@ impl CPU_6502{
                     self.cycles +=1;
                     if ((self.program_counter>>8) != (self.address_bus>>8)){
                         self.cycles +=1;}
-                    self.program_counter=self.address_bus}    
+                    self.program_counter=self.address_bus}
             },
             10 => {//BRK
                 let stack:u16= 0x0100;
@@ -544,8 +544,8 @@ impl CPU_6502{
                 self.write_memory((self.program_counter & (255 as u16)) as u8);
                 self.stack_pointer= self.stack_pointer.wrapping_sub(1);
 
-                
-                
+
+
                 self.address_bus=stack.wrapping_add(self.stack_pointer as u16);
                 self.write_memory(status|(((self.read_N() as u8)<<7)|((self.read_V() as u8)<<6)|((true as u8)<<4)|((self.read_D()as u8)<<3)|((self.read_I()as u8)<<2)|((self.read_Z()as u8)<<1)|((self.read_C()as u8))));
                 self.stack_pointer = self.stack_pointer.wrapping_sub(1);
@@ -564,14 +564,14 @@ impl CPU_6502{
                     self.cycles +=1;
                     if ((self.program_counter>>8) != (self.address_bus>>8)){
                         self.cycles +=1;}
-                    self.program_counter=self.address_bus}  
+                    self.program_counter=self.address_bus}
             },
             12 => { //BVS
                 if(self.read_V()==true) {
                     self.cycles +=1;
                     if ((self.program_counter>>8) != (self.address_bus>>8)){
                         self.cycles +=1;}
-                    self.program_counter=self.address_bus}  
+                    self.program_counter=self.address_bus}
             },
             13 => { //CLC
                 self.update_C(false);
@@ -635,7 +635,7 @@ impl CPU_6502{
                 self.write_memory(self.data_bus);
                 self.update_Z(self.data_bus == 0);
                 self.update_N((self.data_bus & (1 << 7)) >> 7 == 1);
-                
+
             },
             25 => { //INX
                 *self.reg_x() = (*self.reg_x()).wrapping_add(1);
@@ -661,7 +661,7 @@ impl CPU_6502{
 
                 self.program_counter = self.program_counter.wrapping_sub(1);    //the real cpu6502 doesn't do this. normally it uses internal latches and registers to store real program counter was in absoloute low byte mode.
                                                                                 //and a cpu always does read and write in every cycle so addressing bus would read dummy read register which stored real pc at that moment.
-                                                                                //and in this step we would look in address bus instead of (program counter -1) 
+                                                                                //and in this step we would look in address bus instead of (program counter -1)
                 self.write_memory( ((self.program_counter)>>8) as u8);
                 self.stack_pointer=self.stack_pointer.wrapping_sub(1);
                 self.address_bus = stack.wrapping_add(self.stack_pointer as u16);
@@ -670,20 +670,20 @@ impl CPU_6502{
                 self.program_counter=d;
             },
             29 => { //LDA
-                self.read_memory();    
+                self.read_memory();
                 self.accumulator = self.data_bus;
                 self.update_Z(self.accumulator == 0);
                 self.update_N((self.accumulator & (1 << 7)) >> 7 == 1);
             },
             30 => { //LDX
-                self.read_memory();    
+                self.read_memory();
                 *self.reg_x() = self.data_bus;
                 let x:u8=*self.reg_x();
                 self.update_Z(x == 0);
                 self.update_N((x & (1 << 7)) >> 7 == 1);
             },
             31 => { //LDY
-                self.read_memory();    
+                self.read_memory();
                 *self.reg_y() = self.data_bus;
                 let y:u8=*self.reg_y();
                 self.update_Z(y == 0);
@@ -695,13 +695,13 @@ impl CPU_6502{
                     d=self.accumulator;
                     self.update_C((d&1)==1);
                     d=d>>1;
-                    self.accumulator=d; 
-                } 
+                    self.accumulator=d;
+                }
                 else {
                     d=self.read_memory();
                     self.update_C((d&1)==1);
                     d= d>>1;
-                    self.write_memory(d);                    
+                    self.write_memory(d);
                 };
 
 
@@ -742,12 +742,12 @@ impl CPU_6502{
                 self.update_N(((self.accumulator&(1<<7))>>7)==1);
             },
             38 => { //PLP
-                
-                
+
+
                 let stack:u16= 0x0100;
                 self.stack_pointer= self.stack_pointer.wrapping_add(1);
                 self.address_bus=stack.wrapping_add(self.stack_pointer as u16);
-                
+
                 let d:u8 = self.read_memory();
                 self.update_N(((d>>7)&1)!=0);
                 self.update_V(((d>>6)&1)!=0);
@@ -757,12 +757,12 @@ impl CPU_6502{
                 self.update_C(((d)&1)!=0);
             },
             39 => { //ROL
-                
+
                 let mut d:u8 = if matches!(operand, OperandOfMode::Accumulator){self.accumulator} else {self.read_memory()};
 
                 let bit7: bool = (d & (1 << 7)) != 0;
                 d = d.wrapping_mul(2);
-                
+
                 d=d|self.read_C() as u8;
                 self.update_C(bit7);
 
@@ -788,7 +788,7 @@ impl CPU_6502{
 
                 self.stack_pointer= self.stack_pointer.wrapping_add(1);
                 self.address_bus=stack.wrapping_add(self.stack_pointer as u16);
-                
+
                 let d:u8 = self.read_memory();
                 self.update_N(((d>>7)&1)!=0);
                 self.update_V(((d>>6)&1)!=0);
@@ -796,19 +796,19 @@ impl CPU_6502{
                 self.update_I(((d>>2)&1)!=0);
                 self.update_Z(((d>>1)&1)!=0);
                 self.update_C(((d)&1)!=0);
-                
-                
+
+
                 self.stack_pointer= self.stack_pointer.wrapping_add(1);
                 self.address_bus= stack.wrapping_add(self.stack_pointer as u16);
                 self.program_counter=self.read_memory() as u16;
 
 
                 self.stack_pointer=self.stack_pointer.wrapping_add(1);
-                self.address_bus= stack.wrapping_add(self.stack_pointer as u16);               
+                self.address_bus= stack.wrapping_add(self.stack_pointer as u16);
                 self.program_counter = self.program_counter | ((self.read_memory() as u16)<<8);
-                
+
                 //BRK pushed exact address so unlike RTS we dont need to add +1 to program counter.
-                                       
+
             },
             42 => { //RTS
                 let stack:u16=0x0100;
@@ -816,7 +816,7 @@ impl CPU_6502{
                 self.address_bus= stack.wrapping_add(self.stack_pointer as u16);
                 self.program_counter=self.read_memory() as u16;
                 self.stack_pointer=self.stack_pointer.wrapping_add(1);
-                self.address_bus= stack.wrapping_add(self.stack_pointer as u16);               
+                self.address_bus= stack.wrapping_add(self.stack_pointer as u16);
                 self.program_counter = self.program_counter | ((self.read_memory() as u16)<<8);
                 self.program_counter = self.program_counter.wrapping_add(1);
             },
@@ -826,11 +826,11 @@ impl CPU_6502{
                 let mut is_overflow2: bool = false;
                 self.read_memory();
 
-                
+
                 (self.accumulator, is_overflow1) = self.accumulator.overflowing_sub(self.data_bus);
                 (self.accumulator, is_overflow2) = self.accumulator.overflowing_sub((self.read_C() !=true) as u8);
                 let bit7_2: bool = (self.accumulator & (1 << 7)) >> 7 == 1;
-                
+
                 self.update_Z(self.accumulator == 0);
                 self.update_C(!is_overflow1  & !is_overflow2);
                 self.update_N((self.accumulator & (1 << 7)) >> 7 == 1);
@@ -866,22 +866,22 @@ impl CPU_6502{
                 self.update_Z(self.accumulator == 0);
                 self.update_N((self.accumulator & (1 << 7)) >> 7 == 1);
             },
-            52 => { //TSX  
+            52 => { //TSX
                 *self.reg_x()=self.stack_pointer;
                 let x:u8 = *self.reg_x();
-                
+
                 self.update_Z(x==0);
                 self.update_N(((x&(1<<7))>>7)==1);
             },
             53 => { //TXA
-                
+
                 self.accumulator = *self.reg_x();
 
                 self.update_Z(self.accumulator==0);
                 self.update_N((self.accumulator & (1 << 7)) >> 7 == 1);
             },
             54 => { //TXS
-               
+
                 self.stack_pointer=*self.reg_x();
             },
             55 => { //TYA
@@ -891,7 +891,7 @@ impl CPU_6502{
                 self.update_N((self.accumulator & (1 << 7)) >> 7 == 1);
             },
 
-    
+
             _ => panic!("Unknown instruction: {:02X}", instruction),
         }
     }
@@ -914,13 +914,13 @@ impl CPU_6502{
     fn read_next_word(&mut self) -> u16{
         let lo = self.read_next_byte() as u16;
         let hi = self.read_next_byte() as u16;
-        (hi << 8) | lo 
+        (hi << 8) | lo
     }
-    
+
     //fn read_next_word(&mut self) -> u16 {
     //    unimplemented!()
     //}
-    
+
     fn read_memory(&mut self ) -> u8 {
         self.data_bus= self.memory.read(self.address_bus);
         return self.data_bus;
@@ -932,7 +932,7 @@ impl CPU_6502{
 
 
 
- 
+
 
 }
 
@@ -940,7 +940,7 @@ impl CPU_6502{
 
 struct Memory{
     data: [u8; 65536],
-    
+
     //first 0000-00FF(256 bytes) kısmına Zero Page,
     //The second 256 bytes ($0100–$01FF), reserved for the system stack.
     // The final 6 bytes ($FFFA–$FFFF):
@@ -962,7 +962,7 @@ fn clock(){
     //1 MHz means a million clock cycles per second, not a million instructions. Each instruction takes 2–7 cycles. The NES CPU also runs at about 1.79 MHz, not 1 MHz.
     //The 6502 has a clock cycle of 1 microsecond, which means that it takes 1 microsecond to execute one clock cycle cycle.
 
-    
+
 }
 
 pub enum OperandOfMode{
@@ -977,13 +977,13 @@ pub enum AddressingMode {
     Immediate,
     ZeroPage,
     ZeroPageX,
-    ZeroPageY,        
+    ZeroPageY,
     Relative,
     Absolute,
     AbsoluteX,
     AbsoluteY,
     Indirect,
     IndexedIndirect,
-    IndirectIndexed,   
+    IndirectIndexed,
 }
 
